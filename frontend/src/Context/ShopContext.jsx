@@ -1,103 +1,99 @@
 import React, { createContext, useEffect, useState } from "react";
-import { backend_url } from "../App";
 
 export const ShopContext = createContext(null);
 
+// 🌍 LIVE BACKEND URL
+const BACKEND_URL = "https://ecommerce-backend-kitz.onrender.com";
+
 const ShopContextProvider = (props) => {
+  const [allProducts, setAllProducts] = useState([]);
+  const [cartItems, setCartItems] = useState({});
 
-  const [products, setProducts] = useState([]);
-
-  const getDefaultCart = () => {
-    let cart = {};
-    for (let i = 0; i < 300; i++) {
-      cart[i] = 0;
-    }
-    return cart;
-  };
-
-  const [cartItems, setCartItems] = useState(getDefaultCart());
-
+  // ---------------- FETCH ALL PRODUCTS ----------------
   useEffect(() => {
-    fetch(`${backend_url}/allproducts`)
+    fetch(`${BACKEND_URL}/allproducts`)
       .then((res) => res.json())
-      .then((data) => setProducts(data))
+      .then((data) => setAllProducts(data))
+      .catch((err) => console.error(err));
+  }, []);
 
-    if (localStorage.getItem("auth-token")) {
-      fetch(`${backend_url}/getcart`, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/form-data',
-          'auth-token': `${localStorage.getItem("auth-token")}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(),
-      })
-        .then((resp) => resp.json())
-        .then((data) => { setCartItems(data) });
-    }
-  }, [])
+  // ---------------- FETCH CART DATA ----------------
+  useEffect(() => {
+    const token = localStorage.getItem("auth-token");
+    if (!token) return;
 
-  const getTotalCartAmount = () => {
-    let totalAmount = 0;
-    for (const item in cartItems) {
-      if (cartItems[item] > 0) {
-        try {
-          let itemInfo = products.find((product) => product.id === Number(item));
-          totalAmount += cartItems[item] * itemInfo.new_price;
-        } catch (error) {}
-      }
-    }
-    return totalAmount;
-  };
+    fetch(`${BACKEND_URL}/getcart`, {
+      method: "POST",
+      headers: {
+        "auth-token": token,
+        "Content-Type": "application/json",
+      },
+    })
+      .then((res) => res.json())
+      .then((data) => setCartItems(data))
+      .catch((err) => console.error(err));
+  }, []);
 
-  const getTotalCartItems = () => {
-    let totalItem = 0;
-    for (const item in cartItems) {
-      if (cartItems[item] > 0) {
-        try {
-          let itemInfo = products.find((product) => product.id === Number(item));
-          totalItem += itemInfo ? cartItems[item] : 0 ;
-        } catch (error) {}
-      }
-    }
-    return totalItem;
-  };
-
+  // ---------------- ADD TO CART ----------------
   const addToCart = (itemId) => {
-    if (!localStorage.getItem("auth-token")) {
-      alert("Please Login");
-      return;
-    }
-    setCartItems((prev) => ({ ...prev, [itemId]: prev[itemId] + 1 }));
-    if (localStorage.getItem("auth-token")) {
-      fetch(`${backend_url}/addtocart`, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/form-data',
-          'auth-token': `${localStorage.getItem("auth-token")}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ "itemId": itemId }),
-      })
-    }
+    setCartItems((prev) => ({
+      ...prev,
+      [itemId]: (prev[itemId] || 0) + 1,
+    }));
+
+    const token = localStorage.getItem("auth-token");
+    if (!token) return;
+
+    fetch(`${BACKEND_URL}/addtocart`, {
+      method: "POST",
+      headers: {
+        "auth-token": token,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ itemId }),
+    });
   };
 
+  // ---------------- REMOVE FROM CART ----------------
   const removeFromCart = (itemId) => {
-    setCartItems((prev) => ({ ...prev, [itemId]: prev[itemId] - 1 }));
-    if (localStorage.getItem("auth-token")) {
-      fetch(`${backend_url}/removefromcart`, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/form-data',
-          'auth-token': `${localStorage.getItem("auth-token")}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ "itemId": itemId }),
-      })
-    }
+    setCartItems((prev) => ({
+      ...prev,
+      [itemId]: prev[itemId] - 1,
+    }));
+
+    const token = localStorage.getItem("auth-token");
+    if (!token) return;
+
+    fetch(`${BACKEND_URL}/removefromcart`, {
+      method: "POST",
+      headers: {
+        "auth-token": token,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ itemId }),
+    });
   };
 
-  const contextValue = { products, getTotalCartItems, cartItems, addToCart, removeFromCart, getTotalCartAmount };
+  // ✅ ---------------- TOTAL CART ITEMS (FIX) ----------------
+  const getTotalCartItems = () => {
+    let total = 0;
+    for (const item in cartItems) {
+      if (cartItems[item] > 0) {
+        total += cartItems[item];
+      }
+    }
+    return total;
+  };
+
+  // ---------------- CONTEXT VALUE ----------------
+  const contextValue = {
+    allProducts,
+    cartItems,
+    addToCart,
+    removeFromCart,
+    getTotalCartItems, // ✅ IMPORTANT
+  };
+
   return (
     <ShopContext.Provider value={contextValue}>
       {props.children}
